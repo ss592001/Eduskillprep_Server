@@ -109,12 +109,12 @@ JSON FORMAT REQUIRED
  {
    "id":"unique-random-id",
    "passage":"<p>Passage text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
-   "question":"<p>Question text here</p>",
+   "question":"<p>Question text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
    "options":[
-      "A. <span>Option text</span>",
-      "B. <span>Option text</span>",
-      "C. <span>Option text</span>",
-      "D. <span>Option text</span>"
+      "A. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+      "B. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+      "C. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+      "D. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>"
    ],
    "answer":"A Or B Or C Or D if objective else the given answer in subjective",
    "explanation":"<p>Explanation text if visible otherwise empty string</p>",
@@ -337,22 +337,20 @@ OUTPUT FORMAT
 
 [
  {
-   "id": "unique-id",
-   "title":"generate a short title for the question",
-   "passage": "if passage exists?<p>text with LaTeX like \(x^2 + y^2 = 1\)</p> otherwise empty string",
-   "question": "<p>question text with correct latex</p>",
-   "options": [
-      "A. <span>option</span>",
-      "B. <span>option</span>",
-      "C. <span>option</span>",
-      "D. <span>option</span>"
+   "id":"unique-random-id",
+   "passage":"<p>Passage text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
+   "question":"<p>Question text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
+   "options":[
+      "A. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+      "B. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+      "C. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+      "D. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>"
    ],
-   "answer": "A or B or C or D or empty",
-   "explanation": "<p>No explanation provided.",
-   "type": "objective or subjective",
-   "difficulty": "easy or moderate or hard",
-   "tags": ["tag1", "tag2"],
-   "diagram":""
+   "answer":"A Or B Or C Or D if objective else the given answer in subjective",
+   "explanation":"<p>Explanation text if visible otherwise empty string</p>",
+   "type":"objective or subjective",
+   "difficulty": "easy or medium or hard",
+   "tags": ["tag1", "tag2", "tag3"]
  }
 ]
 
