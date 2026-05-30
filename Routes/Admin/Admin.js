@@ -108,6 +108,7 @@ JSON FORMAT REQUIRED
 [
  {
    "id":"unique-random-id",
+   "title":"Suitable title for question",
    "passage":"<p>Passage text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
    "question":"<p>Question text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
    "options":[
@@ -338,6 +339,7 @@ OUTPUT FORMAT
 [
  {
    "id":"unique-random-id",
+   "title":"Suitable title for question",
    "passage":"<p>Passage text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
    "question":"<p>Question text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
    "options":[
