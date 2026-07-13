@@ -67,7 +67,7 @@ app.post('/extractSnippingText', async (req, res) => {
 
         // Send to OpenAI
         const result = await openai.chat.completions.create({
-            model: 'gpt-4.1',
+            model: 'gpt-5.5',
             response_format: { type: 'json_object' },
             messages: [
                 {
@@ -217,7 +217,7 @@ No text before or after JSON`
                     ]
                 }
             ],
-            max_tokens: 10000,
+            max_completion_tokens: 10000,
             store: true
         });
 
@@ -238,7 +238,7 @@ app.post('/extractText', UploadImages.single('file'), async (req, res) => {
         const base64Image = imageBuffer.toString('base64');
 
         const result = await openai.chat.completions.create({
-            model: 'gpt-4.1',
+            model: 'gpt-5.5',
             response_format: { "type": "json_object" },
             messages: [
                 {
@@ -416,7 +416,7 @@ Ensure:
                     ]
                 }
             ],
-            max_tokens: 10000,
+            max_completion_tokens: 10000,
             store: true
         });
 
