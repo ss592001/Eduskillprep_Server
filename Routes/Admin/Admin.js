@@ -641,8 +641,7 @@ Before returning the SVG, verify:
 If any plotted point cannot be determined confidently, do not guess. Instead, indicate that the point is uncertain rather than placing it incorrectly.
 
 Examples:
-- Fraction inline math: \\(\\frac{a+b}{c}\\)
-- Equation block: \\[x^2+y^2=z^2\\]
+- Fraction inline math: \(\frac{a+b}{c}\)
 - Chemical / powers: H<sub>2</sub>O
 - Exponents: x<sup>2</sup>
 
@@ -651,6 +650,7 @@ LATEX RULES
 -----------------------------------
 
 All maths MUST be valid LaTeX.
+never use [] to wrap the fractions , equations etc like -  \[\frac{a+b}{c}\] this is wrong .  \(\frac{a+b}{c}\) this is right
 
 Examples:
 √(x+1) => \\sqrt{x+1}
@@ -670,10 +670,6 @@ Use:
 
 Wrap inline math in:
 \\(...\\)
-
-Wrap block math in:
-\\[...\\]
-
 -----------------------------------
 QUESTION TYPE RULES
 -----------------------------------
@@ -924,8 +920,7 @@ Before returning the SVG, verify:
 If any plotted point cannot be determined confidently, do not guess. Instead, indicate that the point is uncertain rather than placing it incorrectly.
 
 Examples:
-- Fraction inline math: \\(\\frac{a+b}{c}\\)
-- Equation block: \\[x^2+y^2=z^2\\]
+- Fraction inline math: \(\frac{a+b}{c}\)
 - Chemical / powers: H<sub>2</sub>O
 - Exponents: x<sup>2</sup>
 
@@ -934,6 +929,7 @@ LATEX RULES
 -----------------------------------
 
 All maths MUST be valid LaTeX.
+never use [] to wrap the fractions , equations etc like -  \[\frac{a+b}{c}\] <- this is wrong .  \(\frac{a+b}{c}\) <- this is right
 
 Examples:
 √(x+1) => \\sqrt{x+1}
