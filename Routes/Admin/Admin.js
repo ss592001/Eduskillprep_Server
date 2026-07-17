@@ -521,6 +521,8 @@ JSON FORMAT REQUIRED
  }
 ]
 
+- for subjective question in which no options are there , always give the answer in decimal format not in fractions and give only final answer eg- 3.54 , 100 etc . no SI unit , extra text etc.
+
 -----------------------------------
 HTML RULES
 -----------------------------------
@@ -587,6 +589,7 @@ recreate the diagram as a valid SVG.
 </div>
 
 - svg structure if image is in options -> no <div> wrapper, just return the <svg>...</svg> directly .remove option number like A , A) , etc for all 4 options.
+
 - The SVG must render correctly in any browser.
 - If text contains mathematical notation, render it using SVG <text>.
 - Do not embed raster images.
@@ -801,6 +804,8 @@ JSON FORMAT REQUIRED
    
  }
 ]
+
+- for subjective question in which no options are there , always give the answer in decimal format not in fractions and give only final answer eg- 3.54 , 100 etc . no SI unit , extra text etc.
 
 -----------------------------------
 HTML RULES
