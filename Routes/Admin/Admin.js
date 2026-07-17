@@ -63,9 +63,9 @@ const openai = new OpenAI({
     apiKey: process.env.AiKey
 });
 
-const openai = new OpenAI({
-    apiKey: process.env.AiKey
-});
+// const openai = new OpenAI({
+//     apiKey: process.env.AiKey
+// });
 
 
 // app.post('/extractSnippingText', async (req, res) => {
