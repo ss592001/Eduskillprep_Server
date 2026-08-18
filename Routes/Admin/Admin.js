@@ -469,7 +469,6 @@ const openai = new OpenAI({
 //                 {
 //                     role: 'system',
 //                     content: `You are an expert OCR + document reconstruction engine for educational content.
->>>>>>> feab6cd94b1a4ce077c49bc05fea89c84bd96394
 
 // Your task is to analyze the provided image carefully and extract ALL visible content with maximum accuracy.
 
@@ -523,7 +522,7 @@ const openai = new OpenAI({
 
 //  }
 // ]
-   
+
 //  }
 // ]
 
@@ -802,7 +801,7 @@ const openai = new OpenAI({
 //    "type":"objective or subjective",
 //    "difficulty": "easy or medium or hard",
 //    "tags": ["tag1", "tag2", "tag3"],
-   
+
 //  }
 // ]
 
