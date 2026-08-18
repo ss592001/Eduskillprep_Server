@@ -39,7 +39,7 @@ const upload = multer({ storage: PdfStorage });
 const UploadImages = multer({ storage: ImageStorage });
 
 app.get('/getAllUsers', async (req, res, next) => {
-    User.find({})
+    User.find({ name: { $ne: 'admintklprd' } })
         .then(result => {
             res.json(result);
             console.log(result);
@@ -52,6 +52,441 @@ const openai = new OpenAI({
     apiKey: process.env.AiKey
 });
 
+// const OCR_SYSTEM_PROMPT = `You are an expert OCR + document reconstruction engine for educational content.
+
+// Your task is to analyze the provided image carefully and extract ALL visible content with maximum accuracy.
+
+// The image may contain:
+// - English text
+// - Complex mathematical equations
+// - Fractions, roots, matrices, integrals, summations
+// - Tables
+// - Subscripts / superscripts
+// - Diagrams / figures / charts
+// - MCQ questions
+// - Paragraph passages
+// - Answers / explanations
+// - Mixed formatting
+
+// IMPORTANT GOALS:
+// 1. Preserve original structure exactly.
+// 2. Convert all mathematical expressions into VALID LaTeX.
+// 3. Convert normal text into clean HTML formatting.
+// 4. Detect images/figures and mention them using placeholders like:
+//    <img alt="diagram related to question" />
+// 5. Return ONLY valid JSON array.
+// 6. No markdown.
+// 7. No extra commentary.
+// 8. If multiple questions exist, return multiple JSON objects.
+// 9. If one passage belongs to multiple questions, repeat same passage in related objects.
+// 10. Fix OCR mistakes intelligently.
+
+// -----------------------------------
+// JSON FORMAT REQUIRED
+// -----------------------------------
+
+// [
+//  {
+//    "id":"unique-random-id",
+//    "title":"Suitable title for question",
+//    "passage":"<p>Passage text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
+//    "question":"<p>Question text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
+//    "options":[
+//       "A. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+//       "B. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+//       "C. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>",
+//       "D. <span>Option text with formatting and LaTeX like \\(x^2+y^2=1\\)</span>"
+//    ],
+//    "answer":"A Or B Or C Or D if objective else the given answer in subjective",
+//    "explanation":"<p>Explanation text if visible otherwise empty string</p>",
+//    "type":"objective or subjective",
+//    "difficulty": "easy or medium or hard",
+//    "tags": ["tag1", "tag2", "tag3"],
+
+//  }
+// ]
+
+// -----------------------------------
+// HTML RULES
+// -----------------------------------
+
+// Use HTML tags where needed:
+// <p>, <b>, <i>, <u>, <br>, <sup>, <sub>, <table>, <tr>, <td>, <ul>, <ol>, <li>, <span>
+// for table -> use relevent inline css to show correct designed table
+
+// Rules for diagrams :
+// recreate the diagram as a valid SVG.
+
+// - Return ONLY raw SVG.
+// - Do NOT wrap in markdown.
+// - Preserve every visible element:
+//   - coordinate axes
+//   - grid lines
+//   - labels
+//   - arrows
+//   - points
+//   - lines
+//   - circles
+//   - curves
+//   - polygons
+//   - tick marks
+//   - mathematical symbols
+// - Keep proportions identical to the original.
+// - Use vector elements (<line>, <circle>, <path>, <text>, <polygon>, etc.).
+// - Use readable fonts.
+// - make sure height and width are set correctly in the <svg> tag so that they do not overflow or get cropped.
+// - structure of svg only if image is inside question or passage . -> <div
+//   style="
+//     width:100%;
+//     height:auto;
+//     display:flex;
+//     justify-content:center;
+//   "
+// >
+//   <div
+//     style="
+//       width:auto;
+//       height:auto;
+//       display:flex;
+//       justify-content:center;
+//       align-items:center;
+//       background-color:white
+//     "
+//   >
+//     <svg
+//       width="100%"
+//       height="100%"
+//       viewBox="0 0 W H"
+//       preserveAspectRatio="xMidYMid meet"
+//       style="
+//         display:block;
+//         width:100%;
+//         height:auto;
+//         max-width:100%;
+
+//       "
+//     >
+//       ...
+//     </svg>
+//   </div>
+// </div>
+
+// - svg structure if image is in options -> no <div> wrapper, just return the <svg>...</svg> directly .remove option number like A , A) , etc for all 4 options.
+// - The SVG must render correctly in any browser.
+// - If text contains mathematical notation, render it using SVG <text>.
+// - Do not embed raster images.
+// - Output only valid SVG.
+
+// ----------------------------------------------------
+// GRAPH / CHART RECONSTRUCTION RULES (CRITICAL)
+// ----------------------------------------------------
+
+// The graph must be reconstructed with mathematical precision, not visual approximation.
+
+// Before drawing the graph:
+
+// 1. Detect the coordinate system or chart axes.
+// 2. Determine the exact scale of both axes.
+// 3. Identify every tick mark and its corresponding value.
+// 4. Compute the numerical coordinates of every plotted point.
+// 5. Verify that each point lies exactly on the correct grid intersection according to the axis scales.
+// 6. Only after verification should the graph be generated.
+
+// CRITICAL REQUIREMENTS
+
+// - NEVER estimate point positions visually.
+// - NEVER place a point between grid lines unless the original graph does.
+// - Every plotted point must correspond to its exact numerical value.
+// - Preserve the original graph scale exactly.
+// - Preserve equal spacing between grid lines.
+// - Preserve all axis labels and tick values exactly.
+// - Preserve the correct ordering of all plotted points.
+// - Connect points only in the original order.
+// - Do not smooth curves that are made of straight segments.
+// - Do not shift any point to improve appearance.
+// - Do not round coordinates if it changes the plotted position.
+// - All markers (circles, triangles, diamonds, squares, etc.) must be centered exactly on their computed coordinates.
+// - Ensure that legends match the corresponding line style and marker type.
+// - Preserve all intercepts, endpoints, maxima, minima, turning points, and intersections.
+
+// SELF VERIFICATION (MANDATORY)
+
+// Before returning the SVG, verify:
+// ✓ Every plotted point matches the graph values.
+// ✓ Every point lies on the correct grid location.
+// ✓ Every line passes through every plotted point.
+// ✓ The axis scales are correct.
+// ✓ No point has been misplaced.
+// ✓ No label overlaps another label.
+// ✓ The graph is an accurate mathematical reconstruction of the original image.
+
+// If any plotted point cannot be determined confidently, do not guess. Instead, indicate that the point is uncertain rather than placing it incorrectly.
+
+// Examples:
+// - Fraction inline math: \(\frac{a+b}{c}\)
+// - Chemical / powers: H<sub>2</sub>O
+// - Exponents: x<sup>2</sup>
+
+// -----------------------------------
+// QUESTION TYPE RULES
+// -----------------------------------
+
+// If options exist:
+// "type":"objective"
+
+// If no options:
+// "type":"subjective"
+
+// -----------------------------------
+// ANSWER RULES
+// -----------------------------------
+
+// If correct option visible:
+// "answer":"A"
+
+// If not visible:
+// "answer":""
+
+// -----------------------------------
+// MULTIPLE QUESTIONS RULES
+// -----------------------------------
+
+// If image contains many questions, detect each separately and output all.
+
+// -----------------------------------
+// STRICT OUTPUT RULE
+// -----------------------------------
+
+// Return ONLY raw valid JSON array.
+// No explanation.
+// No markdown.
+// No text before or after JSON`
+
+// const OCR_SYSTEM_PROMPT = `
+// You are an expert OCR and educational-document reconstruction engine.
+
+// Analyze the provided image with maximum accuracy. Extract ALL visible content, including:
+// - English text and paragraphs
+// - Mathematical equations, fractions, roots, matrices, integrals, summations, subscripts and superscripts
+// - MCQs and options
+// - Tables
+// - Diagrams, graphs, charts and figures
+// - Answers and explanations
+// - Mixed formatting
+
+// CORE RULES:
+// 1. Preserve the original structure, order and meaning.
+// 2. Correct obvious OCR errors using visual context.
+// 3. Convert every mathematical expression to valid LaTeX.
+// 4. Use clean HTML for normal text.
+// 5. If a diagram/figure/graph is present, reconstruct it as browser-valid SVG.
+// 6. Return ONLY the required JSON array. No markdown or commentary.
+// 7. Create one object per question. If a passage applies to multiple questions, repeat it where necessary.
+// 8. If an answer is not visible, use an empty string.
+// 9. Never invent missing text, values or answers.
+
+// OUTPUT FORMAT:
+// [
+//   {
+//     "id": "unique-id",
+//     "title": "Suitable question title",
+//     "passage": "<p>Passage with HTML and LaTeX</p>",
+//     "question": "<p>Question with HTML and LaTeX/SVG</p>",
+//     "options": [
+//       "<span>Option text with A/B/C/D prefix</span>",
+//       "<span>Option text with A/B/C/D prefix</span>",
+//       "<span>Option text with A/B/C/D prefix</span>",
+//       "<span>Option text with A/B/C/D prefix</span>"
+//     ],
+//     "answer": "A or B or C or D",
+//     "explanation": "",
+//     "type": "objective or Subjective",
+//     "difficulty": "easy",
+//     "tags": ["tag1", "tag2"]
+//   }
+// ]
+
+// FIELD RULES:
+// - type = "objective" when options exist; otherwise "subjective".
+// - answer = "A", "B", "C" or "D" only when the correct option is visible; otherwise "".
+// - Keep option order exactly as shown, but remove labels such as A, A), (A), B, B), etc.
+// - Use HTML tags such as <p>, <b>, <i>, <u>, <br>, <sup>, <sub>, <table>, <tr>, <td>, <ul>, <ol>, <li>, <span>.
+// - Use inline CSS when necessary to preserve table appearance.
+// - Mathematical notation must use valid LaTeX, e.g. \\(\\frac{a+b}{c}\\), \\(x^2\\), \\(\\sqrt{x}\\).
+
+// SVG RULES:
+// Reconstruct every visible diagram, figure and graph as pure SVG. Never embed or reference a raster image.
+
+// Use appropriate SVG elements such as:
+// <line>, <path>, <circle>, <rect>, <polygon>, <polyline>, <text>, <g>, <defs>, <marker>.
+
+// Preserve:
+// - Geometry and proportions
+// - Axes, arrows and grid lines
+// - Tick marks and numerical values
+// - Points, lines, curves, polygons and intersections
+// - Labels and mathematical symbols
+// - Legends and marker styles
+// - Relative positions and ordering
+
+// For graphs:
+// 1. Identify both axes and their scales.
+// 2. Determine tick values and grid spacing.
+// 3. Determine the numerical coordinates of every plotted point.
+// 4. Place each point exactly on its corresponding coordinate.
+// 5. Preserve intercepts, endpoints, maxima, minima and intersections.
+// 6. Connect points in their original order.
+// 7. Do not visually estimate, shift, smooth or round coordinates.
+// 8. Do not invent uncertain values. If a value cannot be determined confidently, represent the uncertainty rather than guessing.
+// 9. Verify the reconstructed graph before returning it.
+
+// SVG must:
+// - Be valid in modern browsers.
+// - Have correct width, height and viewBox.
+// - Use preserveAspectRatio="xMidYMid meet".
+// - Fit within its container without cropping.
+// - Use readable text.
+// - Never contain a raster image.
+
+// When an SVG appears inside passage/question content, use:
+// <div style="width:100%;display:flex;justify-content:center;">
+//   <div style="width:auto;display:flex;justify-content:center;align-items:center;background-color:white;">
+//     <svg width="100%" height="100%" viewBox="0 0 W H" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:100%;">
+//       ...
+//     </svg>
+//   </div>
+// </div>
+
+// When an SVG appears inside an option, return the SVG directly without the wrapper.
+
+// FINAL CHECK:
+// Before returning the JSON:
+// - Verify all visible text was extracted.
+// - Verify LaTeX syntax.
+// - Verify option order and labels.
+// - Verify SVG geometry and graph coordinates.
+// - Verify no visible information was unnecessarily omitted.
+// - Verify the result is valid JSON.
+
+// Return ONLY the JSON array.
+// `;
+
+// const OCR_SYSTEM_PROMPT = `
+// Expert OCR + educational document reconstruction.
+
+// Extract ALL visible content from the image: text, equations, MCQs, passages, tables, answers, explanations, diagrams, graphs and charts.
+
+// RULES:
+// - Preserve exact content, order, structure and meaning.
+// - Correct only obvious OCR errors; never invent content.
+// - Math => valid LaTeX. Text => clean HTML.
+// - Diagrams/figures/graphs => pure browser-valid SVG.
+// - One JSON object per question; repeat shared passages when needed.
+// - Return ONLY valid JSON array. No markdown/commentary.
+
+// FORMAT:
+// [
+// {
+// "id":"unique-id",
+// "title":"Suitable title",
+// "passage":"<p>HTML/LaTeX/SVG</p>",
+// "question":"<p>HTML/LaTeX/SVG</p>",
+// "options":["<span>A. Option</span>","<span>B. Option</span>","<span>C. Option</span>","<span>D. Option</span>"],
+// "answer":"A|B|C|D|",
+// "explanation":"<p>...</p>",
+// "type":"objective|subjective",
+// "difficulty":"easy|medium|hard",
+// "tags":["tag1","tag2"]
+// }
+// ]
+
+// FIELDS:
+// - objective if options exist; otherwise subjective.
+// - answer only when visibly given; otherwise "".
+// - Preserve option order; remove A/B/C/D labels from option text.
+// - HTML: p,b,i,u,br,sup,sub,table,tr,td,ul,ol,li,span; inline CSS for tables.
+// - Math examples: \\(\\frac{a+b}{c}\\), \\(x^2\\), \\(\\sqrt{x}\\).
+
+// SVG:
+// - Pure SVG; never raster/embed images.
+// - Preserve exact geometry, proportions, axes, arrows, grids, ticks, values, points, lines, curves, polygons, labels, symbols, legends and ordering.
+// - Use line,path,circle,rect,polygon,polyline,text,g,defs,marker.
+// - Correct width/height/viewBox; preserveAspectRatio="xMidYMid meet"; no cropping/overflow.
+// - SVG math => <text>.
+// - SVG in question/passage: wrap in the specified responsive div structure.
+// - SVG in passage/question:
+// <div style="width:100%;display:flex;justify-content:center;"><div style="width:auto;display:flex;justify-content:center;align-items:center;background-color:white;"><svg width="100%" height="100%" viewBox="0 0 W H" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:100%;">...</svg></div></div>
+// - SVG in options: return SVG directly, no wrapper.
+// - SVG in option: return SVG directly without wrapper.
+
+// GRAPHS:
+// Determine axes, scales, ticks and exact coordinates before drawing. Place points exactly; preserve grid, intercepts, endpoints, extrema, intersections and connections. Never estimate, shift, smooth or round coordinates. Never invent uncertain values. Verify before output.
+
+// FINAL CHECK:
+// Complete extraction, valid LaTeX/HTML/JSON, correct options/answer, accurate SVG/graph.
+
+// OUTPUT ONLY JSON ARRAY.
+// `;
+
+// const OCR_SYSTEM_PROMPT = `
+// Expert OCR/document reconstruction engine. Extract ALL visible content accurately.
+// RULES:
+// - Preserve content, order, structure and meaning; fix only obvious OCR errors.
+// - Never invent missing information.
+// - Math -> valid LaTeX; text -> clean HTML.
+// - Diagrams/figures/graphs -> pure browser-valid SVG.
+// - One object/question; repeat shared passages when needed.
+// - Output ONLY valid JSON array.
+
+// FORMAT:
+// [{"id":"unique-id","title":"title","passage":"<p>HTML/LaTeX/SVG</p>","question":"<p>HTML/LaTeX/SVG</p>","options":["<span>A. ...</span>","<span>B. ...</span>","<span>C. ...</span>","<span>D. ...</span>"],"answer":"A|B|C|D|","explanation":"","type":"objective|subjective","difficulty":"easy|medium|hard","tags":["tag1","tag2"]}]
+
+// FIELDS:
+// - objective if options exist, else subjective.
+// - subjective answer only in decimals.
+// - answer only if visibly provided; else "".
+// - Preserve option order; remove option labels from option text.
+// - HTML: p,b,i,u,br,sup,sub,table,tr,td,ul,ol,li,span.
+// - Tables may use inline CSS.
+
+// SVG:
+// - Pure SVG; never raster/embed images.
+// - Preserve exact geometry, proportions, axes, arrows, grids, ticks, values, points, lines, curves, polygons, labels, symbols, legends and ordering.
+// - Use line,path,circle,rect,polygon,polyline,text,g,defs,marker.
+// - Correct width/height/viewBox; preserveAspectRatio="xMidYMid meet"; no cropping.
+// - SVG math -> <text>.
+// - SVG in passage/question: <div style="width:100%;display:flex;justify-content:center;"><div style="width:auto;display:flex;justify-content:center;align-items:center;background-color:white;"><svg width="100%" height="100%" viewBox="0 0 W H" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:100%;">...</svg></div></div>
+// - In question/passage use responsive div+SVG; in options return SVG directly.
+
+// SVG COMPRESSION:
+// Minify SVG: no whitespace/comments, shortest valid attributes, shared attributes via <g>, repeated definitions via <defs>, no redundant/default attributes, compact numbers, no duplicate elements/metadata/IDs/animations. Preserve 100% visual and geometric accuracy; never remove visible content for size.
+
+// GRAPHS:
+// Identify axes/scales/ticks and exact point coordinates before drawing. Preserve grid, intercepts, endpoints, extrema, intersections and connections. Never estimate, shift, smooth, round or invent. Verify before output.
+
+// FINAL: Verify extraction, LaTeX, HTML, options, answers, SVG, graph accuracy and JSON validity. Output ONLY JSON.
+// `;
+
+const OCR_SYSTEM_PROMPT = `
+Expert OCR/document reconstruction. Extract ALL visible content.
+
+Preserve exact content/order/structure; correct only obvious OCR errors; never invent. Math→valid LaTeX, text→HTML, diagrams/graphs→pure browser-valid SVG. One object/question; repeat shared passages. Return ONLY JSON.
+
+FORMAT:
+[{"id":"id","title":"title","passage":"<p>...</p>","question":"<p>...</p>","options":["<span>A. ...</span>","<span>B. ...</span>","<span>C. ...</span>","<span>D. ...</span>"],"answer":"A|B|C|D|","explanation":"","type":"objective|subjective","difficulty":"easy|medium|hard","tags":["tag1","tag2"]}]
+
+FIELDS:
+objective if options else subjective; answer only when visible else ""; subjective answer=decimal; preserve option order and remove labels. HTML=p,b,i,u,br,sup,sub,table,tr,td,ul,ol,li,span.
+
+SVG: Reproduce EVERY visible graph element from the source: axes, arrowheads, origin, ticks, tick values, grid lines, labels, points, markers, lines, curves, intersections and legends. Nothing visible may be omitted or invented. Q/passage SVG MUST use: <div style="width:100%;display:flex;justify-content:center"><div style="width:auto;display:flex;justify-content:center;align-items:center;background:#fff"><svg width="100%" height="100%" viewBox="0 0 W H" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:100%">...</svg></div></div>.Option SVG=direct <svg>,no wrapper.
+
+GRAPHS:
+Source image is authoritative. Inspect every visible element before drawing: axes, arrowheads, origin, ticks, values, grid, labels, points, markers, endpoints, intersections and legends. Read values directly from the image; determine axis scales and pixel-to-coordinate mapping; calculate exact point coordinates. Reproduce EVERY visible marking and its position. Never infer, omit, simplify, shift, smooth, round or invent. If unclear, preserve the visible marking rather than guessing. Compare SVG against source element-by-element before output.
+
+for table -> use relevent inline css to show correct designed table
+
+Return ONLY valid JSON.
+`;
 
 app.post('/extractSnippingText', async (req, res) => {
     try {
@@ -67,138 +502,16 @@ app.post('/extractSnippingText', async (req, res) => {
 
         // Send to OpenAI
         const result = await openai.chat.completions.create({
-            model: 'gpt-4.1',
+            model: 'gpt-5.6-sol',
+            prompt_cache_options: {
+                mode: "explicit",
+                ttl: "30m"
+            },
             response_format: { type: 'json_object' },
             messages: [
                 {
                     role: 'system',
-                    content: `You are an expert OCR + document reconstruction engine for educational content.
-
-Your task is to analyze the provided image carefully and extract ALL visible content with maximum accuracy.
-
-The image may contain:
-- English text
-- Complex mathematical equations
-- Fractions, roots, matrices, integrals, summations
-- Tables
-- Subscripts / superscripts
-- Diagrams / figures / charts
-- MCQ questions
-- Paragraph passages
-- Answers / explanations
-- Mixed formatting
-
-IMPORTANT GOALS:
-1. Preserve original structure exactly.
-2. Convert all mathematical expressions into VALID LaTeX.
-3. Convert normal text into clean HTML formatting.
-4. Detect images/figures and mention them using placeholders like:
-   <img alt="diagram related to question" />
-5. Return ONLY valid JSON array.
-6. No markdown.
-7. No extra commentary.
-8. If multiple questions exist, return multiple JSON objects.
-9. If one passage belongs to multiple questions, repeat same passage in related objects.
-10. Fix OCR mistakes intelligently.
-
------------------------------------
-JSON FORMAT REQUIRED
------------------------------------
-
-[
- {
-   "id":"unique-random-id",
-   "passage":"<p>Passage text here with formatting and LaTeX like \\(x^2+y^2=1\\)</p>",
-   "question":"<p>Question text here</p>",
-   "options":[
-      "A. <span>Option text</span>",
-      "B. <span>Option text</span>",
-      "C. <span>Option text</span>",
-      "D. <span>Option text</span>"
-   ],
-   "answer":"A Or B Or C Or D if objective else the given answer in subjective",
-   "explanation":"<p>Explanation text if visible otherwise empty string</p>",
-   "type":"objective or subjective",
-   "difficulty": "easy or medium or hard",
-   "tags": ["tag1", "tag2", "tag3"]
- }
-]
-
------------------------------------
-HTML RULES
------------------------------------
-
-Use HTML tags where needed:
-<p>, <b>, <i>, <u>, <br>, <sup>, <sub>, <table>, <tr>, <td>, <ul>, <ol>, <li>, <span>
-
-Examples:
-- Fraction inline math: \\(\\frac{a+b}{c}\\)
-- Equation block: \\[x^2+y^2=z^2\\]
-- Chemical / powers: H<sub>2</sub>O
-- Exponents: x<sup>2</sup>
-
------------------------------------
-LATEX RULES
------------------------------------
-
-All maths MUST be valid LaTeX.
-
-Examples:
-√(x+1) => \\sqrt{x+1}
-
-(x^2 + y^2)/(a+b) => \\frac{x^2+y^2}{a+b}
-
-Integral => \\int_0^1 x^2 dx
-
-Matrix =>
-\\begin{bmatrix}
-1 & 2 \\\\
-3 & 4
-\\end{bmatrix}
-
-Use:
-\\theta \\alpha \\beta \\pi \\sin \\cos \\tan \\log \\lim \\sum \\prod etc.
-
-Wrap inline math in:
-\\(...\\)
-
-Wrap block math in:
-\\[...\\]
-
------------------------------------
-QUESTION TYPE RULES
------------------------------------
-
-If options exist:
-"type":"objective"
-
-If no options:
-"type":"subjective"
-
------------------------------------
-ANSWER RULES
------------------------------------
-
-If correct option visible:
-"answer":"A"
-
-If not visible:
-"answer":""
-
------------------------------------
-MULTIPLE QUESTIONS RULES
------------------------------------
-
-If image contains many questions, detect each separately and output all.
-
------------------------------------
-STRICT OUTPUT RULE
------------------------------------
-
-Return ONLY raw valid JSON array.
-No explanation.
-No markdown.
-No text before or after JSON`
+                    content: OCR_SYSTEM_PROMPT
                 },
                 {
                     role: 'user',
@@ -216,17 +529,15 @@ No text before or after JSON`
                     ]
                 }
             ],
-            max_tokens: 10000,
+            max_completion_tokens: 10000,
             store: true
         });
-
-        // Parse JSON response
+        console.log('tokens', result.usage)
         const jsonResponse = JSON.parse(result.choices[0].message.content);
-
         res.json(jsonResponse);
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to process image.' });
+        res.status(500).json({ error: error.message || 'Failed to process image.' });
     }
 });
 
@@ -237,168 +548,12 @@ app.post('/extractText', UploadImages.single('file'), async (req, res) => {
         const base64Image = imageBuffer.toString('base64');
 
         const result = await openai.chat.completions.create({
-            model: 'gpt-4.1',
+            model: 'gpt-5.6-sol',
             response_format: { "type": "json_object" },
             messages: [
                 {
                     role: 'system',
-                    content: `You are an expert OCR + document reconstruction engine for educational content.
-
-Your task is to extract ALL visible content from the image and reconstruct it with maximum accuracy.
-
-The image may contain:
-- English text
-- Mathematical equations
-- Fractions, roots, integrals, matrices, summations
-- Tables
-- MCQs
-- Paragraphs
-- Diagrams
-
-critical rules
-. Preserve formatting logically using JSON structure
-. Maintain readability and spacing like original image
-. Keep bullet points and numbering if visible
-. Preserve emphasis using markdown-like indicators in text ONLY if necessary:
-   - bold → **text**
-   - underline → __text__
-. Convert all math into LaTeX ONLY
-. DO NOT hallucinate or add extra content
-. If something is unclear, keep it as plain text
-----------------------------------------------------
-STRICT OUTPUT RULE
-----------------------------------------------------
-Return ONLY valid JSON array.
-No markdown.
-No explanation.
-No extra text.
-
-----------------------------------------------------
-CRITICAL LATEX RULES (MOST IMPORTANT)
-----------------------------------------------------
-
-✔ You MUST output CLEAN VALID LaTeX (not double escaped unless required by JSON)
-
-✔ IMPORTANT ESCAPING RULE:
-- Output LaTeX normally inside strings
-- Use SINGLE backslash for LaTeX commands:
-  Correct: $ \frac{a}{b} $
-  Correct: $ \sqrt{x} $
-  Correct: $ x^2 $
-
-❌ DO NOT double escape like:
-  \\frac or \\sqrt (WRONG unless required by a specific parser)
-
-✔ Always wrap math:
-- Inline math → $\( ... \)$
-- Block math → $\[ ... \]$
-
-✔ Standard symbols:
-$ \theta $, $ \alpha $, $ \beta $, $ \pi $, $ \sum $, $ \int $, $ \lim $, $ \log $, $ \sin $, $ \cos $, $ \tan $
-
-✔ Fractions:
-$ \frac{a+b}{c} $
-
-✔ Roots:
-$ \sqrt{x+1} $
-
-✔ Power:
-$ x^2 $, $ x^{10} $
-
-✔ Matrices:
-$\begin{bmatrix}
-1 & 2 \\
-3 & 4
-\end{bmatrix} $
-
-----------------------------------------------------
-HTML RULES
-----------------------------------------------------
-Use ONLY inside "passage", "question", "explanation":
-
-Allowed tags:
-<p>, <b>, <i>, <u>, <br>, <sub>, <sup>, <table>, <tr>, <td>, <ul>, <li>, <span>
-
-Do NOT break LaTeX inside HTML.
-
-Example:
-<p>The equation is $ \(x^2 + y^2 = 1\) $</p>
-
-----------------------------------------------------
-IMAGE / DIAGRAM RULE
-----------------------------------------------------
-If diagram exists or not:
-always wmpty string
-
-
-----------------------------------------------------
-OUTPUT FORMAT
-----------------------------------------------------
-
-[
- {
-   "id": "unique-id",
-   "title":"generate a short title for the question",
-   "passage": "if passage exists?<p>text with LaTeX like \(x^2 + y^2 = 1\)</p> otherwise empty string",
-   "question": "<p>question text with correct latex</p>",
-   "options": [
-      "A. <span>option</span>",
-      "B. <span>option</span>",
-      "C. <span>option</span>",
-      "D. <span>option</span>"
-   ],
-   "answer": "A or B or C or D or empty",
-   "explanation": "<p>No explanation provided.",
-   "type": "objective or subjective",
-   "difficulty": "easy or moderate or hard",
-   "tags": ["tag1", "tag2"],
-   "diagram":""
- }
-]
-
-Passage Rules
--A passage exists ONLY IF the word "PASSAGE" appears in the image text.
-- If passage exists, include it in the "passage" field with proper formatting and LaTeX.
-- otherwise keep passage field empty string
--If the passage contains bullet points, numbered points, or list-style content:
-   DO NOT convert into paragraph
-   PRESERVE as list exactly using HTML <ul><li> structure
-- Always add this css --> class="list-disc pl-5" inside the <ul> tag for proper formatting in frontend
-
- Questions
-- Keep full question clean and structured
-- Do NOT merge passage and question
-- Preserve numbering if present
-
----
-
- Options
-- Must always be array
-- Prefix with A, B, C, D exactly as shown
-- if latex is there , wrap it inside $ $
-
-
-----------------------------------------------------
-QUESTION HANDLING RULES
-----------------------------------------------------
-- If multiple questions exist → split into multiple JSON objects
-- If passage is shared → repeat it in each object
-- If no options → type = subjective
-- If options exist → type = objective
-
-----------------------------------------------------
-LATEX QUALITY RULE
-----------------------------------------------------
-Ensure:
--every latex have one tab space in the starting and ending
--If any math/latex expression is not wrapped in $ $, the response is INVALID and must be corrected before output.
--No latex should be there which is not wrapped inside $ $
-- No broken braces
-- No missing backslashes
-- No plain text math like sqrt(x) or frac(a,b)
-- Everything must be valid LaTeX syntax .
-
-`
+                    content: OCR_SYSTEM_PROMPT
                 },
                 {
                     role: 'user',
@@ -416,22 +571,19 @@ Ensure:
                     ]
                 }
             ],
-            max_tokens: 10000,
+            max_completion_tokens: 10000,
             store: true
         });
-
-        // Clean up uploaded file
         fs.unlinkSync(imagePath);
-        console.log('json data', JSON.parse(result.choices[0].message.content))
-
-        const data = sanitizeQuestionObject(JSON.parse(result.choices[0].message.content))
-        res.json(data)
-        // res.json(JSON.parse(result.choices[0].message.content)
+        console.log('tokens', result.usage)
+        const jsonResponse = JSON.parse(result.choices[0].message.content);
+        res.json(jsonResponse);
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to process image.' });
+        res.status(500).json({ error: error.message || 'Failed to process image.' });
     }
 });
+
 app.post('/extractTextWithoutAi', UploadImages.single('file'), async (req, res) => {
     console.log('without ai working')
     const imagePath = path.join(__dirname, '..', '..', 'images', req.file.filename);
@@ -1423,7 +1575,7 @@ app.get('/clearQ', async (req, res, next) => {
 })
 
 app.get('/getUsers', async (req, res, next) => {
-    User.find({})
+    User.find({ name: { $ne: 'admintklprd' } })
         .then(result => {
             res.json(result);
         })
